@@ -1,0 +1,6 @@
+{
+  "name": "CuraTriage",
+  "description": "AI-powered healthcare triage assistant for intelligent symptom analysis, risk scoring, and immediate medical guidance.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": []
+}
