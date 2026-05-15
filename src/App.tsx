@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Stethoscope, 
@@ -15,19 +15,46 @@ import {
   HeartPulse,
   Home,
   ShieldCheck,
-  ChevronRight
+  ChevronRight,
+  History
 } from 'lucide-react';
-import { PatientProfile, TriageResult } from './types';
+import { PatientProfile, TriageResult, TriageRecord } from './types';
 import { SymptomChat } from './components/SymptomChat';
 import { ResultDashboard } from './components/ResultDashboard';
 import { ProfileForm } from './components/ProfileForm';
+import { HistoryDashboard } from './components/HistoryDashboard';
 
-type FlowStep = 'welcome' | 'profile' | 'chat' | 'result';
+type FlowStep = 'welcome' | 'profile' | 'chat' | 'result' | 'history';
 
 export default function App() {
   const [step, setStep] = useState<FlowStep>('welcome');
   const [profile, setProfile] = useState<PatientProfile>({});
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
+  const [records, setRecords] = useState<TriageRecord[]>([]);
+
+  // Load history from local storage
+  useEffect(() => {
+    const saved = localStorage.getItem('curatriage_history');
+    if (saved) {
+      try {
+        setRecords(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to load history", e);
+      }
+    }
+  }, []);
+
+  const saveRecord = (result: TriageResult) => {
+    const newRecord: TriageRecord = {
+      ...result,
+      id: crypto.randomUUID(),
+      timestamp: Date.now(),
+      patientInfo: profile
+    };
+    const updated = [...records, newRecord];
+    setRecords(updated);
+    localStorage.setItem('curatriage_history', JSON.stringify(updated));
+  };
 
   const startTriage = () => setStep('profile');
 
@@ -38,7 +65,17 @@ export default function App() {
 
   const onTriageComplete = (result: TriageResult) => {
     setTriageResult(result);
+    saveRecord(result);
     setStep('result');
+  };
+
+  const viewHistory = () => setStep('history');
+
+  const clearHistory = () => {
+    if (confirm("Are you sure you want to delete all history?")) {
+      setRecords([]);
+      localStorage.removeItem('curatriage_history');
+    }
   };
 
   const reset = () => {
@@ -114,14 +151,26 @@ export default function App() {
                 ))}
               </div>
 
-              <button
-                id="start-triage-btn"
-                onClick={startTriage}
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 hover:shadow-xl hover:scale-105 transition-all w-full md:w-auto"
-              >
-                Begin Assessment
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="flex flex-col md:flex-row items-center justify-center gap-4">
+                <button
+                  id="start-triage-btn"
+                  onClick={startTriage}
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-8 py-4 rounded-2xl font-bold text-lg hover:bg-blue-700 hover:shadow-xl hover:scale-105 transition-all w-full md:w-auto"
+                >
+                  Begin Assessment
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+
+                {records.length > 0 && (
+                  <button
+                    onClick={viewHistory}
+                    className="inline-flex items-center gap-2 bg-white text-slate-700 border border-slate-200 px-8 py-4 rounded-2xl font-bold text-lg hover:bg-slate-50 hover:shadow-lg transition-all w-full md:w-auto"
+                  >
+                    <History className="w-5 h-5 text-blue-600" />
+                    Past Records ({records.length})
+                  </button>
+                )}
+              </div>
 
               <p className="text-xs text-slate-400 max-w-lg mx-auto">
                 * CuraTriage is an assessment tool, not a diagnosis. 
@@ -151,7 +200,22 @@ export default function App() {
             <ResultDashboard 
               key="result" 
               result={triageResult} 
+              profile={profile}
               onReset={reset}
+            />
+          )}
+
+          {step === 'history' && (
+            <HistoryDashboard
+              key="history"
+              history={records}
+              onBack={reset}
+              onSelect={(record) => {
+                setProfile(record.patientInfo);
+                setTriageResult(record);
+                setStep('result');
+              }}
+              onClear={clearHistory}
             />
           )}
         </AnimatePresence>

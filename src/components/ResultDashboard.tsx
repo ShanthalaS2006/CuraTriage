@@ -12,17 +12,62 @@ import {
   Thermometer,
   Zap,
   Clock,
-  Home
+  Home,
+  Volume2
 } from 'lucide-react';
-import { TriageResult, TriageSeverity } from '../types';
+import { TriageResult, TriageSeverity, PatientProfile } from '../types';
 import { cn } from '../lib/utils';
+import { LANG_CODES } from '../constants';
 
 interface ResultDashboardProps {
   result: TriageResult;
+  profile: PatientProfile;
   onReset: () => void;
 }
 
-export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
+const UI_LABELS: Record<string, Record<string, string>> = {
+  "English": {
+    report: "Assessment Report",
+    risk: "Risk Level",
+    analysis: "Symptom Analysis",
+    pathway: "Recommended Care Pathway",
+    redFlags: "Red Flags Detected",
+    now: "Right Now",
+    reset: "New Assessment",
+    centers: "Find Nearby Health Centers",
+    nearby: "Need Immediate Help?",
+    loc: "Sharing your location can help us find clinics."
+  },
+  "Hindi": {
+    report: "आकलन रिपोर्ट",
+    risk: "जोखिम स्तर",
+    analysis: "लक्षण विश्लेषण",
+    pathway: "अनुशंसित देखभाल मार्ग",
+    redFlags: "खतरे के संकेत",
+    now: "अभी इसी वक्त",
+    reset: "नया आकलन",
+    centers: "पास के स्वास्थ्य केंद्र खोजें",
+    nearby: "तत्काल सहायता की आवश्यकता है?",
+    loc: "अपना स्थान साझा करने से हमें क्लीनिक खोजने में मदद मिल सकती है।"
+  },
+  "Spanish": {
+    report: "Informe de Evaluación",
+    risk: "Nivel de Riesgo",
+    analysis: "Análisis de Síntomas",
+    pathway: "Vía de Cuidado Recomendada",
+    redFlags: "Banderas Rojas Detectadas",
+    now: "Ahora Mismo",
+    reset: "Nueva Evaluación",
+    centers: "Buscar Centros de Salud Cercanos",
+    nearby: "¿Necesita Ayuda Inmediata?",
+    loc: "Compartir su ubicación puede ayudarnos a encontrar clínicas."
+  }
+};
+
+export function ResultDashboard({ result, profile, onReset }: ResultDashboardProps) {
+  const lang = profile.preferredLanguage || "English";
+  const i18n = UI_LABELS[lang] || UI_LABELS["English"];
+
   const getSeverityStyle = (severity: TriageSeverity) => {
     switch (severity) {
       case TriageSeverity.EMERGENCY:
@@ -49,6 +94,14 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
   };
 
   const Icon = getSeverityIcon(result.severity);
+
+  const speakReport = () => {
+    window.speechSynthesis.cancel();
+    const text = `${result.severity}. ${result.suggestedCareLevel}. ${result.analysis}. ${result.recommendations.join('. ')}`;
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = LANG_CODES[profile.preferredLanguage || "English"] || "en-US";
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleFindCenters = () => {
     if ("geolocation" in navigator) {
@@ -78,15 +131,22 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest backdrop-blur-md">
-              Assessment Report
+              {i18n.report}
             </div>
             <h2 className="text-4xl font-black">{result.severity}</h2>
             <p className="text-white/80 max-w-md font-medium leading-relaxed">
               {result.suggestedCareLevel}
             </p>
+            <button 
+              onClick={speakReport}
+              className="mt-4 flex items-center gap-2 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-full text-xs font-bold transition-colors"
+            >
+              <Volume2 className="w-4 h-4" />
+              Listen to Report
+            </button>
           </div>
           <div className="flex flex-col items-center justify-center p-6 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20">
-             <span className="text-sm font-bold opacity-80 uppercase">Risk Level</span>
+             <span className="text-sm font-bold opacity-80 uppercase">{i18n.risk}</span>
              <span className="text-5xl font-black">{result.riskScore}%</span>
           </div>
         </div>
@@ -99,7 +159,7 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <Zap className="w-4 h-4" />
-              Symptom Analysis
+              {i18n.analysis}
             </h3>
             <div className="prose prose-slate prose-sm max-w-none">
                <ReactMarkdown>{result.analysis}</ReactMarkdown>
@@ -109,7 +169,7 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
             <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" />
-              Recommended Care Pathway
+              {i18n.pathway}
             </h3>
             <ul className="space-y-3">
               {result.recommendations.map((rec, i) => (
@@ -128,7 +188,7 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
           {/* Red Flags Card */}
           {result.redFlagsIdentified.length > 0 && (
             <section className="bg-red-50 p-6 rounded-2xl border border-red-100">
-              <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider mb-3">Red Flags Detected</h3>
+              <h3 className="text-sm font-bold text-red-600 uppercase tracking-wider mb-3">{i18n.redFlags}</h3>
               <ul className="space-y-2">
                 {result.redFlagsIdentified.map((flag, i) => (
                   <li key={i} className="flex items-center gap-2 text-red-800 text-xs font-bold bg-white/50 p-2 rounded-lg border border-red-100">
@@ -142,7 +202,7 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
 
           {/* Immediate Actions */}
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">Right Now</h3>
+            <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4">{i18n.now}</h3>
             <div className="space-y-3">
               {result.immediateActions.map((action, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl text-xs font-medium text-slate-700 border border-slate-100">
@@ -158,7 +218,7 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
             className="w-full flex items-center justify-center gap-2 py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-colors shadow-lg"
           >
             <RefreshCcw className="w-4 h-4" />
-            New Assessment
+            {i18n.reset}
           </button>
         </div>
       </div>
@@ -169,15 +229,15 @@ export function ResultDashboard({ result, onReset }: ResultDashboardProps) {
             <MapPin className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <div className="font-bold text-slate-900">Need Immediate Help?</div>
-            <div className="text-slate-500 text-sm italic">Sharing your location can help us find clinics.</div>
+            <div className="font-bold text-slate-900">{i18n.nearby}</div>
+            <div className="text-slate-500 text-sm italic">{i18n.loc}</div>
           </div>
         </div>
         <button 
           onClick={handleFindCenters}
           className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm shadow-md hover:bg-blue-700 transition-colors"
         >
-          Find Nearby Health Centers
+          {i18n.centers}
         </button>
       </div>
 

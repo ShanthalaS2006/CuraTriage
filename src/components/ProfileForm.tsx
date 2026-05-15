@@ -13,15 +13,21 @@ export function ProfileForm({ onComplete, onBack }: ProfileFormProps) {
   const [age, setAge] = useState<string>('');
   const [gender, setGender] = useState<string>('');
   const [history, setHistory] = useState<string>('');
+  const [language, setLanguage] = useState<string>('English');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onComplete({
       age: parseInt(age) || undefined,
       gender,
-      history
+      history,
+      preferredLanguage: language
     });
   };
+
+  const languages = [
+    "English", "Hindi", "Spanish", "French", "Arabic", "Bengali", "Portuguese", "Russian", "Urdu", "Swahili"
+  ];
 
   return (
     <motion.div
@@ -72,6 +78,27 @@ export function ProfileForm({ onComplete, onBack }: ProfileFormProps) {
                 <option value="Female">Female</option>
                 <option value="Other">Other / Prefer not to say</option>
               </select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-semibold text-slate-700 block">Preferred Language</label>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {languages.map((lang) => (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setLanguage(lang)}
+                  className={cn(
+                    "px-3 py-2 text-xs font-bold rounded-lg border transition-all",
+                    language === lang 
+                      ? "bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-100" 
+                      : "bg-white text-slate-600 border-slate-200 hover:border-blue-300"
+                  )}
+                >
+                  {lang}
+                </button>
+              ))}
             </div>
           </div>
 

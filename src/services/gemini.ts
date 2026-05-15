@@ -11,6 +11,7 @@ PRINCIPLES:
 2. EMPATHY: Use professional yet reassuring and empathetic language.
 3. CLEAR GUIDANCE: Provide actionable steps, not just information.
 4. NON-DIAGNOSTIC: Remind users that you are an AI, not a human doctor, and this is a triage tool, not a definitive diagnosis.
+5. MULTILINGUAL: Respond in the user's preferred language if specified. If they speak in a specific language, respond in that language.
 
 TRIAGE CATEGORIES:
 - EMERGENCY: Immediate life-threatening conditions. Advice: "Go to the nearest ER immediately" or "Call emergency services".
@@ -27,7 +28,7 @@ export async function analyzeSymptoms(
   const model = "gemini-3-flash-preview";
   
   const historyString = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
-  const profileString = `Patient: ${profile.age || 'Unknown'}yo ${profile.gender || 'Unknown'}. History: ${profile.history || 'None'}`;
+  const profileString = `Patient: ${profile.age || 'Unknown'}yo ${profile.gender || 'Unknown'}. History: ${profile.history || 'None'}. Preferred Language: ${profile.preferredLanguage || 'Auto-detect'}`;
 
   const prompt = `
     Analyze the following patient interaction and provide a structured triage report.
@@ -35,6 +36,8 @@ export async function analyzeSymptoms(
     
     CONVERSATION:
     ${historyString}
+    
+    IMPORTANT: Provide the "analysis", "suggestedCareLevel", "recommendations", and "immediateActions" in the patient's preferred language: ${profile.preferredLanguage || 'the language used in conversation'}.
     
     Return a detailed JSON object matching the TriageResult schema.
   `;
@@ -104,7 +107,7 @@ export async function generateFollowUpQuestion(
     model,
     contents: messages.map(m => ({ role: m.role as any, parts: [{ text: m.content }] })),
     config: {
-      systemInstruction: `${TRIAGE_SYSTEM_INSTRUCTION}\nBased on the user's symptoms, ask precisely ONE focused follow-up question to better assess their risk. Check for duration, intensity, or specific complicating factors. Be concise and professional. If you have enough info to triage, say 'I have enough information to perform an assessment.'`
+      systemInstruction: `${TRIAGE_SYSTEM_INSTRUCTION}\nBased on the user's symptoms, ask precisely ONE focused follow-up question to better assess their risk. Check for duration, intensity, or specific complicating factors. Be concise and professional. Respond in the user's preferred language: ${profile.preferredLanguage || 'Auto-detect'}. If you have enough info to triage, say 'I have enough information to perform an assessment.' in English.`
     }
   });
 

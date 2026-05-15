@@ -29,4 +29,11 @@ export interface PatientProfile {
   age?: number;
   gender?: string;
   history?: string;
+  preferredLanguage?: string;
+}
+
+export interface TriageRecord extends TriageResult {
+  id: string;
+  timestamp: number;
+  patientInfo: PatientProfile;
 }

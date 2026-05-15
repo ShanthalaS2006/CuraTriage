@@ -1,9 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Send, User, Bot, Loader2, Info, ChevronLeft, Activity } from 'lucide-react';
+import { Send, User, Bot, Loader2, Info, ChevronLeft, Activity, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { ChatMessage, PatientProfile, TriageResult } from '../types';
 import { generateFollowUpQuestion, analyzeSymptoms } from '../services/gemini';
 import { cn } from '../lib/utils';
+import { LANG_CODES } from '../constants';
+
+// Voice Recognition Types (Browser API)
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 interface SymptomChatProps {
   profile: PatientProfile;
@@ -11,19 +20,88 @@ interface SymptomChatProps {
   onBack: () => void;
 }
 
+const GREETINGS: Record<string, string> = {
+  "English": "Hello. I'm CuraTriage AI. Tell me, what symptoms are you experiencing today?",
+  "Hindi": "नमस्ते। मैं क्यूराट्राएज एआई हूं। मुझे बताएं, आज आप किन लक्षणों का अनुभव कर रहे हैं?",
+  "Spanish": "Hola. Soy CuraTriage AI. Dígame, ¿qué síntomas está experimentando hoy?",
+  "French": "Bonjour. Je suis l'IA CuraTriage. Dites-moi, quels symptômes ressentez-vous aujourd'hui ?",
+  "Arabic": "مرحباً. أنا CuraTriage AI. أخبرني ، ما هي الأعراض التي تعاني منها اليوم؟",
+  "Bengali": "হ্যালো। আমি কুরাট্রেজ এআই। বলুন, আজ আপনি কী কী উপসর্গ অনুভব করছেন?",
+  "Portuguese": "Olá. Eu sou a CuraTriage AI. Diga-me, quais sintomas você está sentindo hoje?",
+  "Russian": "Здравствуйте. Я CuraTriage AI. Скажите, какие симптомы вы испытываете сегодня?",
+  "Urdu": "ہیلو۔ میں CuraTriage AI ہوں۔ مجھے بتائیں ، آج آپ کن علامات کا سامنا کر رہے ہیں؟",
+  "Swahili": "Habari. Mimi ni CuraTriage AI. Niambie, ni dalili gani unazopata leo?"
+};
+
 export function SymptomChat({ profile, onComplete, onBack }: SymptomChatProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: 'assistant', content: `Hello. I'm CuraTriage AI. Tell me, what symptoms are you experiencing today?` }
+    { role: 'assistant', content: GREETINGS[profile.preferredLanguage || 'English'] || GREETINGS["English"] }
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState<number | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Voice Recognition setup
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = LANG_CODES[profile.preferredLanguage || "English"] || "en-US";
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[event.results.length - 1][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, [profile.preferredLanguage]);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+    } else {
+      setInput('');
+      try {
+        recognitionRef.current?.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error("Speech recognition already started or failed", e);
+        setIsListening(false);
+      }
+    }
+  };
+
+  const speak = (text: string, index: number) => {
+    if (isSpeaking === index) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(null);
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = LANG_CODES[profile.preferredLanguage || "English"] || "en-US";
+    
+    utterance.onend = () => setIsSpeaking(null);
+    utterance.onerror = () => setIsSpeaking(null);
+    setIsSpeaking(index);
+    window.speechSynthesis.speak(utterance);
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isLoading) return;
@@ -102,6 +180,19 @@ export function SymptomChat({ profile, onComplete, onBack }: SymptomChatProps) {
               msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
             )}
           >
+            <div className="flex items-center gap-2 mb-1">
+              {msg.role === 'assistant' && (
+                <button 
+                  onClick={() => speak(msg.content, i)}
+                  className={cn(
+                    "p-1.5 rounded-full transition-colors",
+                    isSpeaking === i ? "bg-blue-100 text-blue-600" : "bg-slate-100 text-slate-400 hover:text-blue-500"
+                  )}
+                >
+                  {isSpeaking === i ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                </button>
+              )}
+            </div>
             <div className={cn(
               "p-4 rounded-2xl text-sm leading-relaxed shadow-sm",
               msg.role === 'user' 
@@ -129,12 +220,21 @@ export function SymptomChat({ profile, onComplete, onBack }: SymptomChatProps) {
       {/* Input */}
       <div className="p-4 bg-slate-50/50">
         <div className="relative flex items-center bg-white border border-slate-200 rounded-2xl p-1 shadow-inner focus-within:ring-2 focus-within:ring-blue-500 transition-all">
+          <button
+            onClick={toggleListening}
+            className={cn(
+              "p-3 rounded-xl transition-all",
+              isListening ? "bg-red-500 text-white animate-pulse" : "bg-slate-50 text-slate-400 hover:text-blue-500"
+            )}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Describe how you feel..."
+            placeholder={isListening ? "Listening..." : "Describe how you feel..."}
             className="flex-1 px-4 py-3 text-sm outline-none bg-transparent"
             disabled={isLoading}
           />
